@@ -223,14 +223,6 @@ export const start = async zcf => {
     return balance.get(buyerWallet)
   }
 
-  const expirationTimer = setTimeout(() => {
-    // Mark ALL tickets for concert as expired after 2 minutes
-    const walletPurchases = walletTicketPurchases.forEach(purchase => ({
-        ...purchase,
-        expiry: true, // Changed from 'expired' to 'expiry' for consistency
-      }));
-  }, 120000);
-
 
   /**
    * Make an invitation to trade for tickets.
