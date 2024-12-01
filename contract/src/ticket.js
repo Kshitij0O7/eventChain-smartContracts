@@ -97,9 +97,12 @@ harden(customTermsShape);
  * @param {ZCF<SellConcertTicketsTerms>} zcf
  */
 export const start = async zcf => {
-  const isPresent = new Map();
+  const walletTicketPurchases = new Map();
+  const balance = new Map();
 
   const { inventory } = zcf.getTerms();
+//const name = brand.getAllegedName();
+// values[0].tradePrice.brand;
 
   const inventoryValues = Object.values(inventory);
 
@@ -130,6 +133,7 @@ export const start = async zcf => {
   const toMint = {
     Tickets: {
       brand: ticketBrand,
+      expired: false,
       value: inventoryBag,
     },
   };
@@ -168,24 +172,65 @@ export const start = async zcf => {
 
     // check that user is paying enough for all the tickets
     const totalPrice = bagPrice(want.Tickets.value, inventory);
-    AmountMath.isGTE(give.Price, totalPrice) ||
-      Fail`Total price is ${q(totalPrice)}, but ${q(give.Price)} was given`;
+    const actualPrice = BigInt(Number(totalPrice)*1.1);
+    
+    AmountMath.isGTE(give.Price, AmountMath.make(ticketBrand, actualPrice) ||
+      Fail`Total price is ${q(totalPrice)}, but ${q(give.Price)} was given`);
 
     atomicRearrange(
       zcf,
       harden([
         // price from buyer to proceeds
-        [buyerSeat, proceeds, { Price: totalPrice }],
+        [buyerSeat, proceeds, { Price: AmountMath.make(ticketBrand, actualPrice) }],
         // tickets from inventory to buyer
         [inventorySeat, buyerSeat, want],
       ]),
     );
+
+    const buyerWallet = buyerSeat.getSubscriber();
+    balance.set(buyerWallet, actualPrice-BigInt(Number(totalPrice)));
+    const existingTickets = walletTicketPurchases.get(buyerWallet) || [];
+    const purchaseEntry = {
+      tickets: want.Tickets,
+      purchaseTimestamp: Date.now(),
+      expiry: false,
+    };
     
-    isPresent.set(buyerSeat, want.Tickets);
+    walletTicketPurchases.set(buyerWallet, [
+        ...existingTickets,
+        purchaseEntry,
+      ]);
+  
 
     buyerSeat.exit(true);
     return 'trade complete';
   };
+
+  const verify = walletAddress => {
+    return walletTicketPurchases.get(walletAddress) || [];
+  }
+
+  const buyFromBalance = (buyerWallet, amount) => {
+    const oldBalance = balance.get(buyerWallet);
+    if(oldBalance>amount){
+        balance.set(buyerWallet, oldBalance-amount);
+    }else{
+        Fail`Total price is ${q(amount)}, but remaining balance is ${q(oldBalance)}`;
+    }
+  }
+
+  const getBalance = buyerWallet => {
+    return balance.get(buyerWallet)
+  }
+
+  const expirationTimer = setTimeout(() => {
+    // Mark ALL tickets for concert as expired after 2 minutes
+    const walletPurchases = walletTicketPurchases.forEach(purchase => ({
+        ...purchase,
+        expiry: true, // Changed from 'expired' to 'expiry' for consistency
+      }));
+  }, 120000);
+
 
   /**
    * Make an invitation to trade for tickets.
@@ -200,7 +245,12 @@ export const start = async zcf => {
   // Mark the publicFacet Far, i.e. reachable from outside the contract
   const publicFacet = Far('Tickets Public Facet', {
     makeTradeInvitation,
+    verify,
+    getBalance,
+    buyFromBalance,
+
   });
+
   return harden({ publicFacet });
 };
 harden(start);

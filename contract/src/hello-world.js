@@ -1,22 +1,23 @@
 import { Far } from '@endo/far';
 
 export const start = () => {
-  const rooms = new Map();
+  const checks = new Map();
 
-  const getRoomCount = () => rooms.size;
-  const makeRoom = id => {
-    let count = 0;
-    const room = Far('Room', {
-      getId: () => id,
-      incr: () => (count += 1),
-      decr: () => (count -= 1),
-    });
-    rooms.set(id, room);
-    return room;
+  checks.set("1", false)
+
+  // const getRoomCount = () => rooms.size;
+  const flip = id => {
+    // let count = 0;
+    checks.set(id, true);
+    // return room;
   };
 
+  const verify = id => {
+    checks.get(id)
+  }
+
   return {
-    publicFacet: Far('RoomMaker', { getRoomCount, makeRoom }),
+    publicFacet: Far('RoomMaker', { verify, flip }),
   };
 };
 
